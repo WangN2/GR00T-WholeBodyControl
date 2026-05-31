@@ -65,5 +65,105 @@ snapshot_download(
 )
 ```
 
-After downloading, extract the motion archives:
+After downloading, extract the motion archives and convert them to the format SONIC expects.
+
+### One-command pipeline (recommended)
+
+We provide a script that automates download → extraction → conversion → filtering:
+
+```bash
+python download_bones_seed.py
+```
+
+This will:
+1. Download `g1.tar.gz` from HuggingFace (~20–30 GB)
+2. Extract CSV motion files
+3. Convert CSV → `motion_lib` PKL (120 fps → 30 fps, degrees → radians, cm → m)
+4. Filter motions that are physically infeasible for G1
+5. Create a symlink at `data/motion_lib_bones_seed/robot_filtered`
+
+The script is idempotent — safe to interrupt and re-run. Already-completed steps are skipped.
+
+**Options:**
+
+```bash
+# Use custom output directory
+python download_bones_seed.py --output-dir /data/bones_seed
+
+# Skip download (you already have g1.tar.gz)
+python download_bones_seed.py --skip-download
+
+# Use more workers for faster conversion
+python download_bones_seed.py --workers 32
+
+# Keep the tar archive after extraction
+python download_bones_seed.py --keep-tar
+```
+
+### Manual steps
+
+If you prefer to run each step manually:
+
+#### 1. Download
+
+```bash
+pip install huggingface_hub
+huggingface-cli download bones-studio/seed g1.tar.gz --repo-type dataset --local-dir .
+```
+
+#### 2. Extract
+
+```bash
+tar -xzf g1.tar.gz
+# This produces a g1/csv/ directory with session subdirectories
+```
+
+#### 3. Convert CSV → motion_lib PKL
+
+```bash
+python gear_sonic/data_process/convert_soma_csv_to_motion_lib.py \
+    --input /path/to/bones_seed/g1/csv/ \
+    --output data/motion_lib_bones_seed/robot \
+    --fps 30 --fps_source 120 \
+    --individual --num_workers 16
+```
+
+This produces one `.pkl` file per motion in `data/motion_lib_bones_seed/robot/`.
+
+#### 4. Filter infeasible motions
+
+```bash
+python gear_sonic/data_process/filter_and_copy_bones_data.py \
+    --source data/motion_lib_bones_seed/robot \
+    --dest data/motion_lib_bones_seed/robot_filtered \
+    --workers 16
+```
+
+About **8.7%** of motions are filtered out (sitting, cycling, climbing, etc.).
+
+### Result
+
+After processing, your directory structure should look like:
+
+```
+data/
+├── motion_lib_bones_seed/
+│   └── robot_filtered/          # ← symlink to processed data
+│       ├── session_001/
+│       │   ├── motion_001.pkl
+│       │   └── motion_001_M.pkl   # mirrored variant
+│       └── ...
+└── bones_seed_smpl/             # ← from download_from_hf.py --training
+    └── smpl_filtered/
+```
+
+### Quick start with sample data (no download needed)
+
+If you just want to verify the pipeline without downloading the full dataset:
+
+```bash
+python download_from_hf.py --sample
+```
+
+This downloads a single walking sequence (~4 MB) to `sample_data/`.
 
