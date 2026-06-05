@@ -11,5 +11,5 @@ target_link_libraries(${EXECUTABLE_NAME} PRIVATE ${PROJECT_NAME} unitree_sdk2
 # Setting our output directory
 set_target_properties(
   ${EXECUTABLE_NAME}
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/target/release/"
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build/release/"
              OUTPUT_NAME ${EXECUTABLE_NAME})

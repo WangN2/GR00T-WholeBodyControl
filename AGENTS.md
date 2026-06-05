@@ -1,11 +1,13 @@
+<!-- From: /home/nio/wangbin/GR00T-WholeBodyControl/AGENTS.md -->
 # Agent Guidance for GR00T-WholeBodyControl
 
 ## Project Overview
 
-This is the official repository for NVIDIA GEAR's **GR00T Whole-Body Control (WBC)** projects. It contains model checkpoints, training/evaluation scripts, and deployment stacks for humanoid robot whole-body controllers. The repository hosts two major systems:
+This is the official repository for NVIDIA GEAR's **GR00T Whole-Body Control (WBC)** projects. It contains model checkpoints, training/evaluation scripts, and deployment stacks for humanoid robot whole-body controllers. The repository hosts three major systems:
 
 1. **Decoupled WBC** — Decoupled controller (RL for lower body, IK for upper body) used in GR00T N1.5 and N1.6.
 2. **GEAR-SONIC Series** — Generalist humanoid whole-body controller based on large-scale motion tracking.
+3. **Simple Planner** — A standalone, simplified PyTorch Transformer motion-completion framework for learning locomotion planners (educational / research use).
 
 **Contact:** `gear-wbc@nvidia.com`  
 **Live docs:** https://nvlabs.github.io/GR00T-WholeBodyControl/
@@ -79,6 +81,11 @@ GR00T-WholeBodyControl/
 │   ├── deploy.sh               #   User-facing deployment launcher
 │   ├── .justfile               #   Build recipes (configure + build + run)
 │   └── CMakeLists.txt          #   Main CMake build file
+├── simple_planner/             # Standalone simplified motion planner (PyTorch)
+│   ├── configs/                #   Training YAML config
+│   ├── data/                   #   Motion dataset loader
+│   ├── models/                 #   Transformer motion-completion model
+│   └── scripts/                #   train.py, export_onnx.py, inference.py
 ├── external_dependencies/      # External git submodules / vendored deps
 │   ├── unitree_sdk2_python/    #   Unitree SDK2 Python bindings
 │   └── XRoboToolkit-PC-Service-Pybind_X86_and_ARM64/
@@ -212,22 +219,26 @@ make format
 - `*.ipynb` files are excluded from ruff.
 
 ### C++ Code Style
-- `gear_sonic_deploy` uses `.clang-format` and `.cmake-format.py`.
+- `gear_sonic_deploy` uses `.clang-format` (ColumnLimit `120`, IndentWidth `2`, UseTab `Never`, BreakBeforeBraces `Custom`, `IndentAccessModifiers: true`).
+- `gear_sonic_deploy` uses `.cmake-format.py` for CMake formatting.
 - Keep C++20 features compatible with the deployment target (Jetson / x86_64 with TensorRT).
 
 ---
 
 ## Testing
 
+### Python Tests
+
 - **Framework:** `pytest`
 - **Test directory:** `decoupled_wbc/tests/`
 - **Config:** `pyproject.toml` sets `testpaths = "decoupled_wbc/tests/"`, log level `DEBUG`.
+- **Custom CLI options:** `conftest.py` adds `--tensorboard-log-dir` (default: `logs/Gr00t_TRL_loco/.tensorboard`).
 
 ```bash
 pytest decoupled_wbc/tests/
 ```
 
-### Test Structure
+### Python Test Structure
 
 Tests mirror the `control/` hierarchy:
 
@@ -238,7 +249,12 @@ Tests mirror the `control/` hierarchy:
 - `tests/data/test_exporter.py` — LeRobot exporter tests (interrupt/resume, workflow). Requires `ffmpeg`; skipped if unavailable.
 - `tests/sim/test_sim_data_collection.py` — Simulation data collection tests. Supports `unit` (50 steps) and `pre_merge` (500 steps + EEF tracking thresholds) modes.
 
-**Note:** There is no automated test runner in CI. The only GitHub Action (`docs.yml`) builds and deploys Sphinx documentation.
+**Note:** There are no tests under `gear_sonic/`. The only GitHub Action (`.github/workflows/docs.yml`) builds and deploys Sphinx documentation.
+
+### C++ Tests
+
+- `gear_sonic_deploy/src/g1/g1_deploy_onnx_ref/unit_tests/` contains C++ unit tests (e.g., `test_fk.cpp`, `test_main.cpp`).
+- No automated C++ test runner is currently wired in CI; tests must be built and run locally.
 
 ---
 
@@ -256,6 +272,8 @@ from gear_sonic.trl.modules import ActorCritic
 # Incorrect
 from control.policy import G1GearWbcPolicy   # will fail
 ```
+
+Both packages declare `py.typed`, `**/*.json`, and `**/*.yaml` as package data, so YAML/JSON configs ship with the wheel.
 
 ### 2. Decoupled WBC Architecture
 
@@ -348,6 +366,15 @@ Most entry points use **`tyro.cli(SomeConfigDataclass)`** for CLI generation (De
 
 **Architecture detection:** The CMake build detects `aarch64`/`arm64` (enables DLA via `cudla`, except on Thor) vs `x86_64`/`amd64` (no DLA).
 
+### 10. Simple Planner (Educational)
+
+`simple_planner/` is a standalone, simplified PyTorch implementation of a Transformer encoder-decoder motion-completion model. It is **not** part of the official deploy stack and is intended for understanding planner training logic.
+
+- **Input:** 4-frame history (root_pos + root_quat + 29 joints) + motion condition (mode, vel, dir).
+- **Output:** Future K=24 frames of whole-body pose.
+- **Modes:** idle, walk, run, squat (simplified from the official 27 modes).
+- **Scripts:** `scripts/train.py`, `scripts/export_onnx.py`, `scripts/inference.py`.
+
 ---
 
 ## Security & Safety Considerations
@@ -362,7 +389,7 @@ Most entry points use **`tyro.cli(SomeConfigDataclass)`** for CLI generation (De
    - Adding a backpack/box changes mass distribution, CoM, and inertia.
    - **Direct deployment of release checkpoints on modified G1 is unsafe.**
    - Must update simulation models (MuJoCo XML, IsaacLab USD/URDF) with measured physical parameters and retrain/finetune.
-   - See `docs/改装G1实机部署工作清单.md` for the full checklist.
+   - See `g1_backpack_urdf_example.md` for a backpack URDF example.
 
 3. **Observation Config Mismatch**
    - If adding extra sensors (second IMU, cameras, LiDAR), do **not** modify the 154D ONNX input directly.
@@ -373,8 +400,9 @@ Most entry points use **`tyro.cli(SomeConfigDataclass)`** for CLI generation (De
    - Multiple G1s in the same lab require DDS Domain ID isolation to prevent command crosstalk.
 
 5. **Git LFS**
-   - Mesh files and model assets are LFS-tracked.
+   - Mesh files and model assets are LFS-tracked (see `.gitattributes`).
    - Without `git lfs pull`, meshes are ~130 byte pointers, causing invisible/broken robots in sim.
+   - **Exception:** `docs/source/_static/**` is explicitly excluded from LFS (filter cleared) so GitHub Pages can serve images directly. The CI workflow (`docs.yml`) bypasses smudge filters to restore real binary content for these assets.
 
 6. **Vulnerability Reporting**
    - Report security vulnerabilities through [NVIDIA's coordinated disclosure process](https://www.nvidia.com/en-us/security/) or email `psirt@nvidia.com`. Do not open public issues for security bugs.
@@ -455,6 +483,8 @@ python decoupled_wbc/sim2mujoco/scripts/run_mujoco_gear_wbc.py
 # Requires Isaac Lab installed separately + Python 3.11
 python gear_sonic/train_agent_trl.py
 ```
+
+**Note:** `train_agent_trl.py` contains a `sys.path` manipulation at the top to ensure the HuggingFace `trl` package is imported instead of the local `gear_sonic/trl/` directory. Do not remove it.
 
 ### Build Documentation
 

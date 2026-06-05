@@ -148,7 +148,7 @@ if(ZMQ_INCLUDE_DIR AND ZMQ_LIBRARY)
     ${ZMQ_INCLUDE_DIR})
   target_link_libraries(zmq_pose_subscriber_test PRIVATE ${ZMQ_LIBRARY})
   set_target_properties(zmq_pose_subscriber_test PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/target/release/"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build/release/"
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF)
@@ -162,7 +162,7 @@ if(ZMQ_INCLUDE_DIR AND ZMQ_LIBRARY)
     ${ZMQ_INCLUDE_DIR})
   target_link_libraries(zmq_python_sender_test PRIVATE ${ZMQ_LIBRARY})
   set_target_properties(zmq_python_sender_test PROPERTIES
-    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/target/release/"
+    RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build/release/"
     CXX_STANDARD 20
     CXX_STANDARD_REQUIRED ON
     CXX_EXTENSIONS OFF)
@@ -210,7 +210,7 @@ target_link_libraries(
 # Setting our output directory and C++ standard
 set_target_properties(
   ${EXECUTABLE_NAME}
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/target/release/"
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build/release/"
              OUTPUT_NAME ${EXECUTABLE_NAME}
              CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
@@ -254,7 +254,7 @@ target_include_directories(run_tests PUBLIC ${EXE_INCLUDES})
 # Setting our output directory and C++ standard
 set_target_properties(
   run_tests
-  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/target/release/"
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${PROJECT_SOURCE_DIR}/build/release/"
              OUTPUT_NAME run_tests
              CXX_STANDARD 20
              CXX_STANDARD_REQUIRED ON
